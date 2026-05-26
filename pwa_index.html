@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Progresos</title>
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Progresos" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
+  <link rel="manifest" href="manifest.json" />
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+    body{font-family:-apple-system,sans-serif;background:#FFF8F0;color:#2D2A26;min-height:100vh;padding-bottom:40px}
+    #header{background:linear-gradient(135deg,#FF6B35 0%,#FF9A3C 60%,#FFB703 100%);padding:env(safe-area-inset-top,20px) 16px 16px;color:#fff}
+    #header h1{font-size:22px;font-weight:700;letter-spacing:1px}
+    #header .date{font-size:13px;opacity:.9;margin-top:2px}
+    .bars{margin-top:12px}
+    .bar-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+    .bar-label{font-size:11px;opacity:.9;width:56px;text-align:right;flex-shrink:0}
+    .bar-track{flex:1;height:8px;background:rgba(255,255,255,.3);border-radius:4px;overflow:hidden}
+    .bar-fill{height:100%;border-radius:4px;transition:width .4s}
+    .bar-pct{font-size:11px;font-weight:700;width:34px;text-align:right}
+    #body{padding:12px}
+    .section{background:#fff;border-radius:14px;margin-bottom:10px;overflow:hidden;border:1px solid #E8D5BE}
+    .sec-header{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;cursor:pointer;user-select:none}
+    .sec-header.open{border-bottom:1px solid #E8D5BE}
+    .sec-left{display:flex;align-items:center;gap:8px}
+    .sec-label{font-weight:600;font-size:15px}
+    .sec-pct{font-size:12px;font-weight:700;padding:2px 8px;border-radius:20px}
+    .chevron{font-size:13px;transition:transform .2s;color:#7A6E63}
+    .chevron.open{transform:rotate(180deg)}
+    .task-list{padding:8px 14px 10px;display:none}
+    .task-list.open{display:block}
+    .task-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #F4E0C0}
+    .task-row:last-child{border-bottom:none}
+    .cb{width:22px;height:22px;border-radius:6px;border:2px solid #E8D5BE;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;transition:all .15s}
+    .cb.done{border-color:inherit;background:currentColor}
+    .cb.done::after{content:'✓';color:#fff;font-size:13px;font-weight:700}
+    .task-label{font-size:14px;line-height:1.4}
+    .task-label.done{text-decoration:line-through;color:#7A6E63}
+    .toggle-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #F4E0C0}
+    .toggle-row:last-child{border-bottom:none}
+    .toggle{width:38px;height:22px;border-radius:11px;background:#D0C8BE;cursor:pointer;position:relative;transition:background .2s;flex-shrink:0}
+    .toggle.on{background:currentColor}
+    .toggle-knob{width:18px;height:18px;border-radius:9px;background:#fff;position:absolute;top:2px;left:2px;transition:left .2s}
+    .toggle.on .toggle-knob{left:18px}
+    .edit-input{border:none;border-bottom:1px dashed #B0A090;background:transparent;font-size:14px;color:#2D2A26;outline:none;flex:1;font-family:inherit}
+    .export-btn{display:block;margin:16px auto 0;padding:12px 32px;background:linear-gradient(90deg,#FF6B35,#FFB703);color:#fff;border:none;border-radius:24px;font-weight:700;font-size:15px;cursor:pointer;letter-spacing:.5px}
+    .export-note{text-align:center;font-size:11px;color:#7A6E63;margin-top:8px}
+  </style>
+</head>
+<body>
+
+<div id="header">
+  <h1>✦ Progresos</h1>
+  <div class="date" id="dateLabel"></div>
+  <div class="bars">
+    <div class="bar-row"><span class="bar-label">Hoy</span><div class="bar-track"><div class="bar-fill" id="barDay" style="background:#fff"></div></div><span class="bar-pct" id="pctDay">0%</span></div>
+    <div class="bar-row"><span class="bar-label">Semana</span><div class="bar-track"><div class="bar-fill" id="barWeek" style="background:#FFE599"></div></div><span class="bar-pct" id="pctWeek">0%</span></div>
+    <div class="bar-row"><span class="bar-label">Mes</span><div class="bar-track"><div class="bar-fill" id="barMonth" style="background:#A8F0E0"></div></div><span class="bar-pct" id="pctMonth">0%</span></div>
+  </div>
+</div>
+
+<div id="body"></div>
+
+<script>
+const DAYS=['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+const MONTHS=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+const VANITY={lunes:'afeitarme',martes:'vellos faciales y pies',miércoles:'vello axilas',jueves:'afeitarme',viernes:'vello púbico, baño y salida oficina'};
+const COLORS={inicio:'#FFB703',ejercicio:'#FF6B35',trabajo:'#00B4D8',lectura:'#06D6A0',semanal:'#A855F7',mensual:'#EC4899'};
+
+const today=new Date();
+const dayName=DAYS[today.getDay()];
+const isWeekday=['lunes','martes','miércoles','jueves','viernes'].includes(dayName);
+const isSat=dayName==='sábado';
+const isDom=dayName==='domingo';
+function isLastSunday(d){if(d.getDay()!==0)return false;const n=new Date(d);n.setDate(d.getDate()+7);return n.getMonth()!==d.getMonth();}
+const isLastSun=isLastSunday(today);
+const isSun=isDom;
+
+// State
+const todayKey=today.toISOString().slice(0,10);
+let state=JSON.parse(localStorage.getItem('progresos_'+todayKey)||'{}');
+let weeklyState=JSON.parse(localStorage.getItem('progresos_weekly')||'null');
+let monthlyState=JSON.parse(localStorage.getItem('progresos_monthly')||'null');
+
+function save(){localStorage.setItem('progresos_'+todayKey,JSON.stringify(state));}
+function saveWeekly(){localStorage.setItem('progresos_weekly',JSON.stringify(weeklyState));}
+function saveMonthly(){localStorage.setItem('progresos_monthly',JSON.stringify(monthlyState));}
+
+// Build sections
+const sections=[];
+const inicioTasks=[
+  {id:'i1',label:'Levantarse, baño, 10 lagartijas y estiramientos'},
+  {id:'i2',label:'Contacto seres queridos, café, cannabis y noticias'},
+  {id:'i3',label:'Escoger outfits del día (incl. mochila gym)'},
+];
+if(VANITY[dayName])inicioTasks.push({id:'i4',label:'Vanidad: '+VANITY[dayName]});
+sections.push({id:'inicio',label:'Inicio',icon:'☀️',tasks:inicioTasks});
+
+if(!isDom){
+  const exTasks=[];
+  if(isWeekday)exTasks.push({id:'e1',label:'Rutina de pesas (gym)'});
+  exTasks.push({id:'e2',label:'Cardio (nado o carrera)'});
+  sections.push({id:'ejercicio',label:'Ejercicio',icon:'💪',tasks:exTasks});
+}
+
+if(!isDom){
+  const tTasks=[
+    {id:'t1',label:'Llamada accionista principal'},
+    {id:'t2',label:'Revisión venta, suministro y precios'},
+    {id:'t3',label:'Actualización pendientes urgentes'},
+    {id:'t4',label:'Seguimiento pendientes, directivos y gerentes'},
+    {id:'t5',label:'Revisión bandejas de descarga y finanzas personales'},
+  ];
+  if(!isSat)tTasks.push({id:'t6',label:'Ajuste de agenda día posterior'});
+  sections.push({id:'trabajo',label:'Trabajo',icon:'💼',tasks:tTasks});
+}
+
+if(!isDom)sections.push({id:'lectura',label:'Lectura',icon:'📖',tasks:[{id:'l1',label:'Capítulo diario'}]});
+
+// Weekly default
+const weeklyDefault=[
+  {id:'w1',label:'Lavar carro',fixed:true,enabled:true},
+  {id:'w2',label:'Mejora personal',fixed:false,enabled:true},
+  {id:'w3',label:'Mejora Aimee',fixed:false,enabled:true},
+  {id:'w4',label:'Mejora carro',fixed:false,enabled:true},
+  {id:'w5',label:'Mejora casa',fixed:false,enabled:true},
+  {id:'w6',label:'Vacaciones',fixed:false,enabled:true},
+  {id:'w7',label:'Compras',fixed:false,enabled:true},
+];
+if(!weeklyState)weeklyState={items:weeklyDefault,checks:{}};
+
+// Monthly default
+const monthlyDefault=[
+  {id:'m1',label:'Compra casa',enabled:true},
+  {id:'m2',label:'Compra carro',enabled:true},
+  {id:'m3',label:'Vacaciones',enabled:true},
+  {id:'m4',label:'Compras',enabled:true},
+];
+if(!monthlyState)monthlyState={items:monthlyDefault,checks:{}};
+
+// Progress calculations
+function pctSections(){
+  const all=sections.flatMap(s=>s.tasks);
+  if(!all.length)return 0;
+  return Math.round(all.filter(t=>state[t.id]).length/all.length*100);
+}
+function pctWeek(){
+  const active=weeklyState.items.filter(i=>i.enabled);
+  if(!active.length)return 0;
+  return Math.round(active.filter(i=>weeklyState.checks[i.id]).length/active.length*100);
+}
+function pctMonth(){
+  const active=monthlyState.items.filter(i=>i.enabled);
+  if(!active.length)return 0;
+  return Math.round(active.filter(i=>monthlyState.checks[i.id]).length/active.length*100);
+}
+
+function updateBars(){
+  const d=pctSections(),w=pctWeek(),m=pctMonth();
+  document.getElementById('barDay').style.width=d+'%';
+  document.getElementById('pctDay').textContent=d+'%';
+  document.getElementById('barWeek').style.width=w+'%';
+  document.getElementById('pctWeek').textContent=w+'%';
+  document.getElementById('barMonth').style.width=m+'%';
+  document.getElementById('pctMonth').textContent=m+'%';
+}
+
+function pctSection(tasks){
+  if(!tasks.length)return 0;
+  return Math.round(tasks.filter(t=>state[t.id]).length/tasks.length*100);
+}
+
+function pctLabel(pct,color){
+  const bg=pct===100?'#D8F5EE':'#F4E0C0';
+  const tc=pct===100?'#0a8a6a':color;
+  return `<span class="sec-pct" style="background:${bg};color:${tc}">${pct}%</span>`;
+}
+
+// Render
+function render(){
+  document.getElementById('dateLabel').textContent=
+    dayName.charAt(0).toUpperCase()+dayName.slice(1)+', '+today.getDate()+' de '+MONTHS[today.getMonth()]+' de '+today.getFullYear();
+
+  const body=document.getElementById('body');
+  body.innerHTML='';
+
+  sections.forEach(sec=>{
+    const color=COLORS[sec.id];
+    const pct=pctSection(sec.tasks);
+    const openKey='open_'+sec.id;
+    const isOpen=state[openKey]!==false;
+
+    const div=document.createElement('div');
+    div.className='section';
+    div.innerHTML=`
+      <div class="sec-header ${isOpen?'open':''}" data-sec="${sec.id}" style="${isOpen?'background:'+color+'18':''}">
+        <div class="sec-left">
+          <span>${sec.icon}</span>
+          <span class="sec-label">${sec.label}</span>
+          ${pctLabel(pct,color)}
+        </div>
+        <span class="chevron ${isOpen?'open':''}">▼</span>
+      </div>
+      <div class="task-list ${isOpen?'open':''}">
+        ${sec.tasks.map((t,i)=>`
+          <div class="task-row">
+            <div class="cb ${state[t.id]?'done':''}" style="color:${color};border-color:${state[t.id]?color:'#E8D5BE'}" data-id="${t.id}"></div>
+            <span class="task-label ${state[t.id]?'done':''}">${t.label}</span>
+          </div>`).join('')}
+      </div>`;
+    body.appendChild(div);
+  });
+
+  // Weekly
+  if(isSun){
+    const color=COLORS.semanal;
+    const pct=pctWeek();
+    const isOpen=weeklyState.open!==false;
+    const div=document.createElement('div');
+    div.className='section';
+    div.innerHTML=`
+      <div class="sec-header ${isOpen?'open':''}" data-special="weekly" style="${isOpen?'background:'+color+'18':''}">
+        <div class="sec-left"><span>🗓</span><span class="sec-label">Semanal</span>${pctLabel(pct,color)}</div>
+        <span class="chevron ${isOpen?'open':''}">▼</span>
+      </div>
+      <div class="task-list ${isOpen?'open':''}">
+        ${weeklyState.items.map(item=>`
+          <div class="toggle-row">
+            ${!item.fixed?`<div class="toggle ${item.enabled?'on':''}" style="color:${color}" data-wtoggle="${item.id}"><div class="toggle-knob"></div></div>`:'<div style="width:38px;flex-shrink:0"></div>'}
+            <input class="edit-input" value="${item.label}" ${item.fixed?'disabled':''} data-wedit="${item.id}" />
+            ${item.enabled?`<div class="cb ${weeklyState.checks[item.id]?'done':''}" style="color:${color};border-color:${weeklyState.checks[item.id]?color:'#E8D5BE'}" data-wcheck="${item.id}"></div>`:''}
+          </div>`).join('')}
+      </div>`;
+    body.appendChild(div);
+  }
+
+  // Monthly
+  if(isLastSun){
+    const color=COLORS.mensual;
+    const pct=pctMonth();
+    const isOpen=monthlyState.open!==false;
+    const div=document.createElement('div');
+    div.className='section';
+    div.innerHTML=`
+      <div class="sec-header ${isOpen?'open':''}" data-special="monthly" style="${isOpen?'background:'+color+'18':''}">
+        <div class="sec-left"><span>📅</span><span class="sec-label">Mensual</span>${pctLabel(pct,color)}</div>
+        <span class="chevron ${isOpen?'open':''}">▼</span>
+      </div>
+      <div class="task-list ${isOpen?'open':''}">
+        ${monthlyState.items.map(item=>`
+          <div class="toggle-row">
+            <div class="toggle ${item.enabled?'on':''}" style="color:${color}" data-mtoggle="${item.id}"><div class="toggle-knob"></div></div>
+            <input class="edit-input" value="${item.label}" data-medit="${item.id}" />
+            ${item.enabled?`<div class="cb ${monthlyState.checks[item.id]?'done':''}" style="color:${color};border-color:${monthlyState.checks[item.id]?color:'#E8D5BE'}" data-mcheck="${item.id}"></div>`:''}
+          </div>`).join('')}
+      </div>`;
+    body.appendChild(div);
+  }
+
+  // Export button
+  const btn=document.createElement('button');
+  btn.className='export-btn';
+  btn.textContent='⬇ Exportar avance del día (.csv)';
+  btn.onclick=exportCSV;
+  body.appendChild(btn);
+  const note=document.createElement('p');
+  note.className='export-note';
+  note.textContent='Compatible con Google Sheets y Excel';
+  body.appendChild(note);
+
+  attachEvents();
+  updateBars();
+}
+
+function attachEvents(){
+  // Section toggles
+  document.querySelectorAll('.sec-header[data-sec]').forEach(h=>{
+    h.addEventListener('click',()=>{
+      const id=h.dataset.sec;
+      state['open_'+id]=state['open_'+id]===false?true:false;
+      save(); render();
+    });
+  });
+  document.querySelectorAll('.sec-header[data-special]').forEach(h=>{
+    h.addEventListener('click',()=>{
+      if(h.dataset.special==='weekly'){weeklyState.open=weeklyState.open===false?true:false;saveWeekly();}
+      else{monthlyState.open=monthlyState.open===false?true:false;saveMonthly();}
+      render();
+    });
+  });
+  // Task checks
+  document.querySelectorAll('.cb[data-id]').forEach(cb=>{
+    cb.addEventListener('click',()=>{
+      state[cb.dataset.id]=!state[cb.dataset.id];
+      save(); render();
+    });
+  });
+  // Weekly checks
+  document.querySelectorAll('.cb[data-wcheck]').forEach(cb=>{
+    cb.addEventListener('click',()=>{
+      weeklyState.checks[cb.dataset.wcheck]=!weeklyState.checks[cb.dataset.wcheck];
+      saveWeekly(); render();
+    });
+  });
+  // Weekly toggles
+  document.querySelectorAll('.toggle[data-wtoggle]').forEach(t=>{
+    t.addEventListener('click',()=>{
+      const item=weeklyState.items.find(i=>i.id===t.dataset.wtoggle);
+      if(item)item.enabled=!item.enabled;
+      saveWeekly(); render();
+    });
+  });
+  // Weekly edits
+  document.querySelectorAll('input[data-wedit]').forEach(inp=>{
+    inp.addEventListener('change',()=>{
+      const item=weeklyState.items.find(i=>i.id===inp.dataset.wedit);
+      if(item)item.label=inp.value;
+      saveWeekly();
+    });
+  });
+  // Monthly checks
+  document.querySelectorAll('.cb[data-mcheck]').forEach(cb=>{
+    cb.addEventListener('click',()=>{
+      monthlyState.checks[cb.dataset.mcheck]=!monthlyState.checks[cb.dataset.mcheck];
+      saveMonthly(); render();
+    });
+  });
+  // Monthly toggles
+  document.querySelectorAll('.toggle[data-mtoggle]').forEach(t=>{
+    t.addEventListener('click',()=>{
+      const item=monthlyState.items.find(i=>i.id===t.dataset.mtoggle);
+      if(item)item.enabled=!item.enabled;
+      saveMonthly(); render();
+    });
+  });
+  // Monthly edits
+  document.querySelectorAll('input[data-medit]').forEach(inp=>{
+    inp.addEventListener('change',()=>{
+      const item=monthlyState.items.find(i=>i.id===inp.dataset.medit);
+      if(item)item.label=inp.value;
+      saveMonthly();
+    });
+  });
+}
+
+function exportCSV(){
+  const rows=[['Fecha','Categoría','Actividad','Estado']];
+  const dateStr=today.toLocaleDateString('es-MX');
+  sections.forEach(s=>s.tasks.forEach(t=>rows.push([dateStr,s.label,t.label,state[t.id]?'Completado':'Pendiente'])));
+  if(isSun)weeklyState.items.filter(i=>i.enabled).forEach(i=>rows.push([dateStr,'Semanal',i.label,weeklyState.checks[i.id]?'Completado':'Pendiente']));
+  if(isLastSun)monthlyState.items.filter(i=>i.enabled).forEach(i=>rows.push([dateStr,'Mensual',i.label,monthlyState.checks[i.id]?'Completado':'Pendiente']));
+  const csv=rows.map(r=>r.map(c=>`"${c}"`).join(',')).join('\n');
+  const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;
+  a.download=`progresos_${todayKey}.csv`;a.click();URL.revokeObjectURL(url);
+}
+
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('sw.js').catch(()=>{});
+}
+
+render();
+</script>
+</body>
+</html>
