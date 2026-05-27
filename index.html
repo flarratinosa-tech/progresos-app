@@ -263,12 +263,12 @@ function render(){
   // Export button
   const btn=document.createElement('button');
   btn.className='export-btn';
-  btn.textContent='⬇ Exportar avance del día (.csv)';
+  btn.textContent='⬆ Exportar a Google Sheets';
   btn.onclick=exportCSV;
   body.appendChild(btn);
   const note=document.createElement('p');
   note.className='export-note';
-  note.textContent='Compatible con Google Sheets y Excel';
+  note.textContent='Sincroniza directo con tu hoja de registro';
   body.appendChild(note);
 
   attachEvents();
@@ -346,18 +346,52 @@ function attachEvents(){
   });
 }
 
-function exportCSV(){
-  const rows=[['Fecha','Categoría','Actividad','Estado']];
+const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbw_eVkaV5Tre-BSDKDIluGrOdmTas1aNOLJlVKHDIUURpZa4Ot_7EJZ6KGYCb4oQx94Yw/exec';
+
+function buildRows(){
   const dateStr=today.toLocaleDateString('es-MX');
-  sections.forEach(s=>s.tasks.forEach(t=>rows.push([dateStr,s.label,t.label,state[t.id]?'Completado':'Pendiente'])));
-  if(isSun)weeklyState.items.filter(i=>i.enabled).forEach(i=>rows.push([dateStr,'Semanal',i.label,weeklyState.checks[i.id]?'Completado':'Pendiente']));
-  if(isLastSun)monthlyState.items.filter(i=>i.enabled).forEach(i=>rows.push([dateStr,'Mensual',i.label,monthlyState.checks[i.id]?'Completado':'Pendiente']));
-  const csv=rows.map(r=>r.map(c=>`"${c}"`).join(',')).join('\n');
-  const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement('a');a.href=url;
-  a.download=`progresos_${todayKey}.csv`;a.click();URL.revokeObjectURL(url);
+  const rows=[];
+  sections.forEach(s=>s.tasks.forEach(t=>rows.push({fecha:dateStr,categoria:s.label,actividad:t.label,estado:state[t.id]?'Completado':'Pendiente'})));
+  if(isSun)weeklyState.items.filter(i=>i.enabled).forEach(i=>rows.push({fecha:dateStr,categoria:'Semanal',actividad:i.label,estado:weeklyState.checks[i.id]?'Completado':'Pendiente'}));
+  if(isLastSun)monthlyState.items.filter(i=>i.enabled).forEach(i=>rows.push({fecha:dateStr,categoria:'Mensual',actividad:i.label,estado:monthlyState.checks[i.id]?'Completado':'Pendiente'}));
+  return rows;
 }
+
+async function exportCSV(){
+  const btn=document.querySelector('.export-btn');
+  const note=document.querySelector('.export-note');
+
+  if(!WEB_APP_URL||WEB_APP_URL==='TU_WEB_APP_URL_AQUI'){
+    note.textContent='⚠️ Configura el WEB_APP_URL en el código.';
+    return;
+  }
+
+  btn.textContent='⏳ Enviando...';
+  btn.disabled=true;
+  note.textContent='Guardando en Google Sheets...';
+
+  try {
+    const res=await fetch(WEB_APP_URL,{
+      method:'POST',
+      headers:{'Content-Type':'text/plain'},
+      body:JSON.stringify({rows:buildRows()})
+    });
+    const data=await res.json();
+    if(data.status==='ok'){
+      btn.textContent='✅ Guardado en Sheets';
+      note.textContent=`${data.data} registros enviados correctamente`;
+      setTimeout(()=>{btn.textContent='⬆ Exportar a Google Sheets';btn.disabled=false;note.textContent='Sincroniza directo con tu hoja de registro';},3000);
+    } else {
+      throw new Error(data.data||'Error desconocido');
+    }
+  } catch(err){
+    btn.textContent='❌ Error al enviar';
+    btn.disabled=false;
+    note.textContent='Revisa tu conexión e intenta de nuevo · '+err.message;
+    setTimeout(()=>{btn.textContent='⬆ Exportar a Google Sheets';note.textContent='Sincroniza directo con tu hoja de registro';},4000);
+  }
+}
+
 
 if('serviceWorker' in navigator){
   navigator.serviceWorker.register('sw.js').catch(()=>{});
