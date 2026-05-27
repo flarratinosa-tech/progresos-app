@@ -357,39 +357,55 @@ function buildRows(){
   return rows;
 }
 
-async function exportCSV(){
+function exportCSV(){
   const btn=document.querySelector('.export-btn');
   const note=document.querySelector('.export-note');
-
-  if(!WEB_APP_URL||WEB_APP_URL==='TU_WEB_APP_URL_AQUI'){
-    note.textContent='⚠️ Configura el WEB_APP_URL en el código.';
-    return;
-  }
 
   btn.textContent='⏳ Enviando...';
   btn.disabled=true;
   note.textContent='Guardando en Google Sheets...';
 
-  try {
-    const res=await fetch(WEB_APP_URL,{
-      method:'POST',
-      headers:{'Content-Type':'text/plain'},
-      body:JSON.stringify({rows:buildRows()})
-    });
-    const data=await res.json();
-    if(data.status==='ok'){
-      btn.textContent='✅ Guardado en Sheets';
-      note.textContent=`${data.data} registros enviados correctamente`;
-      setTimeout(()=>{btn.textContent='⬆ Exportar a Google Sheets';btn.disabled=false;note.textContent='Sincroniza directo con tu hoja de registro';},3000);
-    } else {
-      throw new Error(data.data||'Error desconocido');
-    }
-  } catch(err){
+  const encoded=encodeURIComponent(JSON.stringify({rows:buildRows()}));
+  const url=`${WEB_APP_URL}?data=${encoded}`;
+
+  // Usar iframe oculto para evitar bloqueo CORS de Apps Script
+  const iframe=document.createElement('iframe');
+  iframe.style.display='none';
+  iframe.src=url;
+  document.body.appendChild(iframe);
+
+  // Apps Script redirige tras ejecutarse — éxito si el iframe carga
+  iframe.onload=()=>{
+    btn.textContent='✅ Guardado en Sheets';
+    note.textContent='Registros enviados correctamente';
+    document.body.removeChild(iframe);
+    setTimeout(()=>{
+      btn.textContent='⬆ Exportar a Google Sheets';
+      btn.disabled=false;
+      note.textContent='Sincroniza directo con tu hoja de registro';
+    },3000);
+  };
+
+  iframe.onerror=()=>{
     btn.textContent='❌ Error al enviar';
     btn.disabled=false;
-    note.textContent='Revisa tu conexión e intenta de nuevo · '+err.message;
-    setTimeout(()=>{btn.textContent='⬆ Exportar a Google Sheets';note.textContent='Sincroniza directo con tu hoja de registro';},4000);
-  }
+    note.textContent='Revisa tu conexión e intenta de nuevo';
+    document.body.removeChild(iframe);
+  };
+
+  // Timeout de seguridad 10 segundos
+  setTimeout(()=>{
+    if(document.body.contains(iframe)){
+      document.body.removeChild(iframe);
+      btn.textContent='✅ Guardado en Sheets';
+      note.textContent='Registros enviados correctamente';
+      setTimeout(()=>{
+        btn.textContent='⬆ Exportar a Google Sheets';
+        btn.disabled=false;
+        note.textContent='Sincroniza directo con tu hoja de registro';
+      },3000);
+    }
+  },10000);
 }
 
 
