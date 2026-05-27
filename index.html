@@ -51,7 +51,6 @@
   </style>
 </head>
 <body>
-
 <div id="header">
   <h1>✦ Progresos</h1>
   <div class="date" id="dateLabel"></div>
@@ -61,10 +60,10 @@
     <div class="bar-row"><span class="bar-label">Mes</span><div class="bar-track"><div class="bar-fill" id="barMonth" style="background:#A8F0E0"></div></div><span class="bar-pct" id="pctMonth">0%</span></div>
   </div>
 </div>
-
 <div id="body"></div>
 
 <script>
+const WEB_APP_URL='https://script.google.com/macros/s/AKfycbw_eVkaV5Tre-BSDKDIluGrOdmTas1aNOLJlVKHDIUURpZa4Ot_7EJZ6KGYCb4oQx94Yw/exec';
 const DAYS=['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 const MONTHS=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
 const VANITY={lunes:'afeitarme',martes:'vellos faciales y pies',miércoles:'vello axilas',jueves:'afeitarme',viernes:'vello púbico, baño y salida oficina'};
@@ -78,18 +77,15 @@ const isDom=dayName==='domingo';
 function isLastSunday(d){if(d.getDay()!==0)return false;const n=new Date(d);n.setDate(d.getDate()+7);return n.getMonth()!==d.getMonth();}
 const isLastSun=isLastSunday(today);
 const isSun=isDom;
-
-// State
 const todayKey=today.toISOString().slice(0,10);
+
 let state=JSON.parse(localStorage.getItem('progresos_'+todayKey)||'{}');
 let weeklyState=JSON.parse(localStorage.getItem('progresos_weekly')||'null');
 let monthlyState=JSON.parse(localStorage.getItem('progresos_monthly')||'null');
-
 function save(){localStorage.setItem('progresos_'+todayKey,JSON.stringify(state));}
 function saveWeekly(){localStorage.setItem('progresos_weekly',JSON.stringify(weeklyState));}
 function saveMonthly(){localStorage.setItem('progresos_monthly',JSON.stringify(monthlyState));}
 
-// Build sections
 const sections=[];
 const inicioTasks=[
   {id:'i1',label:'Levantarse, baño, 10 lagartijas y estiramientos'},
@@ -98,14 +94,12 @@ const inicioTasks=[
 ];
 if(VANITY[dayName])inicioTasks.push({id:'i4',label:'Vanidad: '+VANITY[dayName]});
 sections.push({id:'inicio',label:'Inicio',icon:'☀️',tasks:inicioTasks});
-
 if(!isDom){
   const exTasks=[];
   if(isWeekday)exTasks.push({id:'e1',label:'Rutina de pesas (gym)'});
   exTasks.push({id:'e2',label:'Cardio (nado o carrera)'});
   sections.push({id:'ejercicio',label:'Ejercicio',icon:'💪',tasks:exTasks});
 }
-
 if(!isDom){
   const tTasks=[
     {id:'t1',label:'Llamada accionista principal'},
@@ -117,10 +111,8 @@ if(!isDom){
   if(!isSat)tTasks.push({id:'t6',label:'Ajuste de agenda día posterior'});
   sections.push({id:'trabajo',label:'Trabajo',icon:'💼',tasks:tTasks});
 }
-
 if(!isDom)sections.push({id:'lectura',label:'Lectura',icon:'📖',tasks:[{id:'l1',label:'Capítulo diario'}]});
 
-// Weekly default
 const weeklyDefault=[
   {id:'w1',label:'Lavar carro',fixed:true,enabled:true},
   {id:'w2',label:'Mejora personal',fixed:false,enabled:true},
@@ -131,8 +123,6 @@ const weeklyDefault=[
   {id:'w7',label:'Compras',fixed:false,enabled:true},
 ];
 if(!weeklyState)weeklyState={items:weeklyDefault,checks:{}};
-
-// Monthly default
 const monthlyDefault=[
   {id:'m1',label:'Compra casa',enabled:true},
   {id:'m2',label:'Compra carro',enabled:true},
@@ -141,7 +131,10 @@ const monthlyDefault=[
 ];
 if(!monthlyState)monthlyState={items:monthlyDefault,checks:{}};
 
-// Progress calculations
+function pctSection(tasks){
+  if(!tasks||!tasks.length)return 0;
+  return Math.round(tasks.filter(t=>state[t.id]).length/tasks.length*100);
+}
 function pctSections(){
   const all=sections.flatMap(s=>s.tasks);
   if(!all.length)return 0;
@@ -168,44 +161,72 @@ function updateBars(){
   document.getElementById('pctMonth').textContent=m+'%';
 }
 
-function pctSection(tasks){
-  if(!tasks.length)return 0;
-  return Math.round(tasks.filter(t=>state[t.id]).length/tasks.length*100);
-}
-
 function pctLabel(pct,color){
   const bg=pct===100?'#D8F5EE':'#F4E0C0';
   const tc=pct===100?'#0a8a6a':color;
   return `<span class="sec-pct" style="background:${bg};color:${tc}">${pct}%</span>`;
 }
 
-// Render
+function buildRows(){
+  return {
+    fecha:     today.toLocaleDateString('es-MX'),
+    inicio:    pctSection(sections.find(s=>s.id==='inicio')?.tasks||[]),
+    ejercicio: pctSection(sections.find(s=>s.id==='ejercicio')?.tasks||[]),
+    trabajo:   pctSection(sections.find(s=>s.id==='trabajo')?.tasks||[]),
+    lectura:   pctSection(sections.find(s=>s.id==='lectura')?.tasks||[]),
+    semanal:   isSun ? pctWeek() : '-',
+    mensual:   isLastSun ? pctMonth() : '-',
+    dia:       pctSections()
+  };
+}
+
+function exportCSV(){
+  const btn=document.querySelector('.export-btn');
+  const note=document.querySelector('.export-note');
+  btn.textContent='⏳ Enviando...';
+  btn.disabled=true;
+  note.textContent='Guardando en Google Sheets...';
+  fetch(WEB_APP_URL,{
+    method:'POST',
+    mode:'no-cors',
+    headers:{'Content-Type':'text/plain'},
+    body:JSON.stringify(buildRows())
+  })
+  .then(()=>{
+    btn.textContent='✅ Guardado en Sheets';
+    note.textContent='Avance del día registrado correctamente';
+    setTimeout(()=>{
+      btn.textContent='⬆ Exportar a Google Sheets';
+      btn.disabled=false;
+      note.textContent='Sincroniza directo con tu hoja de registro';
+    },3000);
+  })
+  .catch(()=>{
+    btn.textContent='❌ Error al enviar';
+    btn.disabled=false;
+    note.textContent='Revisa tu conexión e intenta de nuevo';
+  });
+}
+
 function render(){
   document.getElementById('dateLabel').textContent=
     dayName.charAt(0).toUpperCase()+dayName.slice(1)+', '+today.getDate()+' de '+MONTHS[today.getMonth()]+' de '+today.getFullYear();
-
   const body=document.getElementById('body');
   body.innerHTML='';
 
   sections.forEach(sec=>{
     const color=COLORS[sec.id];
     const pct=pctSection(sec.tasks);
-    const openKey='open_'+sec.id;
-    const isOpen=state[openKey]!==false;
-
+    const isOpen=state['open_'+sec.id]!==false;
     const div=document.createElement('div');
     div.className='section';
     div.innerHTML=`
       <div class="sec-header ${isOpen?'open':''}" data-sec="${sec.id}" style="${isOpen?'background:'+color+'18':''}">
-        <div class="sec-left">
-          <span>${sec.icon}</span>
-          <span class="sec-label">${sec.label}</span>
-          ${pctLabel(pct,color)}
-        </div>
+        <div class="sec-left"><span>${sec.icon}</span><span class="sec-label">${sec.label}</span>${pctLabel(pct,color)}</div>
         <span class="chevron ${isOpen?'open':''}">▼</span>
       </div>
       <div class="task-list ${isOpen?'open':''}">
-        ${sec.tasks.map((t,i)=>`
+        ${sec.tasks.map(t=>`
           <div class="task-row">
             <div class="cb ${state[t.id]?'done':''}" style="color:${color};border-color:${state[t.id]?color:'#E8D5BE'}" data-id="${t.id}"></div>
             <span class="task-label ${state[t.id]?'done':''}">${t.label}</span>
@@ -214,7 +235,6 @@ function render(){
     body.appendChild(div);
   });
 
-  // Weekly
   if(isSun){
     const color=COLORS.semanal;
     const pct=pctWeek();
@@ -237,7 +257,6 @@ function render(){
     body.appendChild(div);
   }
 
-  // Monthly
   if(isLastSun){
     const color=COLORS.mensual;
     const pct=pctMonth();
@@ -260,7 +279,6 @@ function render(){
     body.appendChild(div);
   }
 
-  // Export button
   const btn=document.createElement('button');
   btn.className='export-btn';
   btn.textContent='⬆ Exportar a Google Sheets';
@@ -276,12 +294,11 @@ function render(){
 }
 
 function attachEvents(){
-  // Section toggles
   document.querySelectorAll('.sec-header[data-sec]').forEach(h=>{
     h.addEventListener('click',()=>{
       const id=h.dataset.sec;
       state['open_'+id]=state['open_'+id]===false?true:false;
-      save(); render();
+      save();render();
     });
   });
   document.querySelectorAll('.sec-header[data-special]').forEach(h=>{
@@ -291,29 +308,19 @@ function attachEvents(){
       render();
     });
   });
-  // Task checks
   document.querySelectorAll('.cb[data-id]').forEach(cb=>{
-    cb.addEventListener('click',()=>{
-      state[cb.dataset.id]=!state[cb.dataset.id];
-      save(); render();
-    });
+    cb.addEventListener('click',()=>{state[cb.dataset.id]=!state[cb.dataset.id];save();render();});
   });
-  // Weekly checks
   document.querySelectorAll('.cb[data-wcheck]').forEach(cb=>{
-    cb.addEventListener('click',()=>{
-      weeklyState.checks[cb.dataset.wcheck]=!weeklyState.checks[cb.dataset.wcheck];
-      saveWeekly(); render();
-    });
+    cb.addEventListener('click',()=>{weeklyState.checks[cb.dataset.wcheck]=!weeklyState.checks[cb.dataset.wcheck];saveWeekly();render();});
   });
-  // Weekly toggles
   document.querySelectorAll('.toggle[data-wtoggle]').forEach(t=>{
     t.addEventListener('click',()=>{
       const item=weeklyState.items.find(i=>i.id===t.dataset.wtoggle);
       if(item)item.enabled=!item.enabled;
-      saveWeekly(); render();
+      saveWeekly();render();
     });
   });
-  // Weekly edits
   document.querySelectorAll('input[data-wedit]').forEach(inp=>{
     inp.addEventListener('change',()=>{
       const item=weeklyState.items.find(i=>i.id===inp.dataset.wedit);
@@ -321,22 +328,16 @@ function attachEvents(){
       saveWeekly();
     });
   });
-  // Monthly checks
   document.querySelectorAll('.cb[data-mcheck]').forEach(cb=>{
-    cb.addEventListener('click',()=>{
-      monthlyState.checks[cb.dataset.mcheck]=!monthlyState.checks[cb.dataset.mcheck];
-      saveMonthly(); render();
-    });
+    cb.addEventListener('click',()=>{monthlyState.checks[cb.dataset.mcheck]=!monthlyState.checks[cb.dataset.mcheck];saveMonthly();render();});
   });
-  // Monthly toggles
   document.querySelectorAll('.toggle[data-mtoggle]').forEach(t=>{
     t.addEventListener('click',()=>{
       const item=monthlyState.items.find(i=>i.id===t.dataset.mtoggle);
       if(item)item.enabled=!item.enabled;
-      saveMonthly(); render();
+      saveMonthly();render();
     });
   });
-  // Monthly edits
   document.querySelectorAll('input[data-medit]').forEach(inp=>{
     inp.addEventListener('change',()=>{
       const item=monthlyState.items.find(i=>i.id===inp.dataset.medit);
@@ -346,66 +347,9 @@ function attachEvents(){
   });
 }
 
-const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbw_eVkaV5Tre-BSDKDIluGrOdmTas1aNOLJlVKHDIUURpZa4Ot_7EJZ6KGYCb4oQx94Yw/exec';
-
-function buildRows(){
-  const dateStr=today.toLocaleDateString('es-MX');
-  const rows=[];
-  sections.forEach(s=>s.tasks.forEach(t=>rows.push({fecha:dateStr,categoria:s.label,actividad:t.label,estado:state[t.id]?'Completado':'Pendiente'})));
-  if(isSun)weeklyState.items.filter(i=>i.enabled).forEach(i=>rows.push({fecha:dateStr,categoria:'Semanal',actividad:i.label,estado:weeklyState.checks[i.id]?'Completado':'Pendiente'}));
-  if(isLastSun)monthlyState.items.filter(i=>i.enabled).forEach(i=>rows.push({fecha:dateStr,categoria:'Mensual',actividad:i.label,estado:monthlyState.checks[i.id]?'Completado':'Pendiente'}));
-  return rows;
-}
-
-function buildRows(){
-  const pcts={
-    fecha:   today.toLocaleDateString('es-MX'),
-    inicio:  pctSection(sections.find(s=>s.id==='inicio')?.tasks||[]),
-    ejercicio: pctSection(sections.find(s=>s.id==='ejercicio')?.tasks||[]),
-    trabajo: pctSection(sections.find(s=>s.id==='trabajo')?.tasks||[]),
-    lectura: pctSection(sections.find(s=>s.id==='lectura')?.tasks||[]),
-    semanal: isSun ? pctWeek() : '-',
-    mensual: isLastSun ? pctMonth() : '-',
-    dia:     pctSections()
-  };
-  return pcts;
-}
-
-function exportCSV(){
-  const btn=document.querySelector('.export-btn');
-  const note=document.querySelector('.export-note');
-
-  btn.textContent='⏳ Enviando...';
-  btn.disabled=true;
-  note.textContent='Guardando en Google Sheets...';
-
-  fetch(WEB_APP_URL, {
-    method: 'POST',
-    mode: 'no-cors',
-    headers: {'Content-Type':'text/plain'},
-    body: JSON.stringify(buildRows())
-  })
-  .then(()=>{
-    btn.textContent='✅ Guardado en Sheets';
-    note.textContent='Avance del día registrado correctamente';
-    setTimeout(()=>{
-      btn.textContent='⬆ Exportar a Google Sheets';
-      btn.disabled=false;
-      note.textContent='Sincroniza directo con tu hoja de registro';
-    },3000);
-  })
-  .catch(()=>{
-    btn.textContent='❌ Error al enviar';
-    btn.disabled=false;
-    note.textContent='Revisa tu conexión e intenta de nuevo';
-  });
-}
-
-
 if('serviceWorker' in navigator){
   navigator.serviceWorker.register('sw.js').catch(()=>{});
 }
-
 render();
 </script>
 </body>
