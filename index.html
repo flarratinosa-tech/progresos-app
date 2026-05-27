@@ -357,6 +357,20 @@ function buildRows(){
   return rows;
 }
 
+function buildRows(){
+  const pcts={
+    fecha:   today.toLocaleDateString('es-MX'),
+    inicio:  pctSection(sections.find(s=>s.id==='inicio')?.tasks||[]),
+    ejercicio: pctSection(sections.find(s=>s.id==='ejercicio')?.tasks||[]),
+    trabajo: pctSection(sections.find(s=>s.id==='trabajo')?.tasks||[]),
+    lectura: pctSection(sections.find(s=>s.id==='lectura')?.tasks||[]),
+    semanal: isSun ? pctWeek() : '-',
+    mensual: isLastSun ? pctMonth() : '-',
+    dia:     pctSections()
+  };
+  return pcts;
+}
+
 function exportCSV(){
   const btn=document.querySelector('.export-btn');
   const note=document.querySelector('.export-note');
@@ -365,48 +379,26 @@ function exportCSV(){
   btn.disabled=true;
   note.textContent='Guardando en Google Sheets...';
 
-  const encoded=encodeURIComponent(JSON.stringify({rows:buildRows()}));
-  const url=`${WEB_APP_URL}?data=${encoded}`;
-
-  // Escuchar respuesta via postMessage desde la ventana popup
-  const handler=function(event){
-    const msg=event.data||'';
-    if(msg.startsWith('ok:')){
-      const count=msg.split(':')[1];
-      btn.textContent='✅ Guardado en Sheets';
-      note.textContent=count+' registros enviados correctamente';
-    } else if(msg==='activa'){
-      return; // ignorar ping de prueba
-    } else {
-      btn.textContent='⚠️ Revisa el Sheet';
-      note.textContent='Respuesta: '+msg;
-    }
-    window.removeEventListener('message',handler);
+  fetch(WEB_APP_URL, {
+    method: 'POST',
+    mode: 'no-cors',
+    headers: {'Content-Type':'text/plain'},
+    body: JSON.stringify(buildRows())
+  })
+  .then(()=>{
+    btn.textContent='✅ Guardado en Sheets';
+    note.textContent='Avance del día registrado correctamente';
     setTimeout(()=>{
       btn.textContent='⬆ Exportar a Google Sheets';
       btn.disabled=false;
       note.textContent='Sincroniza directo con tu hoja de registro';
     },3000);
-  };
-  window.addEventListener('message',handler);
-
-  // Abrir ventana pequeña — ejecuta el script y cierra sola
-  const popup=window.open(url,'_blank','width=1,height=1');
-
-  // Timeout 15 seg
-  setTimeout(()=>{
-    window.removeEventListener('message',handler);
-    if(popup&&!popup.closed) popup.close();
-    if(btn.disabled){
-      btn.textContent='✅ Enviado';
-      note.textContent='Verifica tu hoja de registro';
-      setTimeout(()=>{
-        btn.textContent='⬆ Exportar a Google Sheets';
-        btn.disabled=false;
-        note.textContent='Sincroniza directo con tu hoja de registro';
-      },3000);
-    }
-  },15000);
+  })
+  .catch(()=>{
+    btn.textContent='❌ Error al enviar';
+    btn.disabled=false;
+    note.textContent='Revisa tu conexión e intenta de nuevo';
+  });
 }
 
 
