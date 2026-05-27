@@ -63,7 +63,7 @@
 <div id="body"></div>
 
 <script>
-const WEB_APP_URL='https://script.google.com/macros/s/AKfycbw_eVkaV5Tre-BSDKDIluGrOdmTas1aNOLJlVKHDIUURpZa4Ot_7EJZ6KGYCb4oQx94Yw/exec';
+const WEB_APP_URL='https://script.google.com/macros/s/AKfycbz-g3YMoOc-Hd6kQoCV7kPQSneLPNkucgOU5j8yNNXfOp1F5I67czZgdDYKcNzsvMk6zA/exec';
 const DAYS=['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 const MONTHS=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
 const VANITY={lunes:'afeitarme',martes:'vellos faciales y pies',miércoles:'vello axilas',jueves:'afeitarme',viernes:'vello púbico, baño y salida oficina'};
@@ -282,7 +282,8 @@ function render(){
   const btn=document.createElement('button');
   btn.className='export-btn';
   btn.textContent='⬆ Exportar a Google Sheets';
-  btn.onclick=exportCSV;
+  btn.addEventListener('click',exportCSV);
+  btn.addEventListener('touchend',function(e){e.preventDefault();exportCSV();});
   body.appendChild(btn);
   const note=document.createElement('p');
   note.className='export-note';
